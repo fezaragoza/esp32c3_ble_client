@@ -385,10 +385,10 @@ static void gattc_profile_evt_handler(esp_gattc_cb_event_t event, esp_gatt_if_t 
                         }
 
                         /*  Every service have only one char in our 'ESP_GATTS_DEMO' demo, so we used first 'char_elem_result' */
-                        if (count > 0 && (char_elem[0].properties & ESP_GATT_CHAR_PROP_BIT_NOTIFY)) { // ESP_GATT_CHAR_PROP_BIT_NOTIFY
+                        if (count > 0 && (char_elem[0].properties & ESP_GATT_CHAR_PROP_BIT_READ)) { // ESP_GATT_CHAR_PROP_BIT_NOTIFY
                             app_profile->char_handle = char_elem[0].char_handle;
-                            esp_ble_gattc_register_for_notify (gattc_if, app_profile->remote_bda, char_elem[0].char_handle);
-                            // esp_ble_gattc_read_char(gattc_if, p_data->search_cmpl.conn_id, char_elem_result[0].char_handle, ESP_GATT_AUTH_REQ_NONE);
+                            // esp_ble_gattc_register_for_notify (gattc_if, app_profile->remote_bda, char_elem[0].char_handle);
+                            esp_ble_gattc_read_char(gattc_if, p_data->search_cmpl.conn_id, char_elem[0].char_handle, ESP_GATT_AUTH_REQ_NONE);
                         }
                     }
                     /* free char_elem */
@@ -405,6 +405,7 @@ static void gattc_profile_evt_handler(esp_gattc_cb_event_t event, esp_gatt_if_t 
                 break;
             }
             esp_log_buffer_hex(TAG, p_data->read.value, p_data->read.value_len); // esp_ble_gattc_cb_param_t
+            ble_start_scan(&ble_client);
             break;
         case ESP_GATTC_REG_FOR_NOTIFY_EVT: {
             ESP_LOGI(TAG, "ESP_GATTC_REG_FOR_NOTIFY_EVT");
@@ -496,7 +497,7 @@ static void gattc_profile_evt_handler(esp_gattc_cb_event_t event, esp_gatt_if_t 
             } else {
                 ESP_LOGI(TAG, "write char success");
             }
-            ble_start_scan(&ble_client);
+            // ble_start_scan(&ble_client);
             break;
         case ESP_GATTC_SRVC_CHG_EVT: {
             esp_bd_addr_t bda;

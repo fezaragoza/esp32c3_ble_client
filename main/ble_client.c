@@ -41,8 +41,6 @@ static void gattc_profile_evt_handler(esp_gattc_cb_event_t event, esp_gatt_if_t 
 /* * * * * * * * * * * * * * * *
  * * * * * * VARIABLES * * * * *
  * * * * * * * * * * * * * * * */
-static esp_gattc_char_elem_t *char_elem_result   = NULL;
-static esp_gattc_descr_elem_t *descr_elem_result = NULL;
 
 /* * * * * * * * * * * * * * * *
  * * * * * * STRUCTS * * * * * *
@@ -55,18 +53,18 @@ ble_gatt_client_t ble_client = {
             .gattc_cb = gattc_profile_evt_handler,
             .gattc_if = ESP_GATT_IF_NONE,       /* Not get the gatt_if, so initial is ESP_GATT_IF_NONE */
         },
-        // [PROFILE_B_APP_ID] = {
-        //     .gattc_cb = gattc_profile_evt_handler,
-        //     .gattc_if = ESP_GATT_IF_NONE,       /* Not get the gatt_if, so initial is ESP_GATT_IF_NONE */
-        // },
-        // [PROFILE_C_APP_ID] = {
-        //     .gattc_cb = gattc_profile_evt_handler,
-        //     .gattc_if = ESP_GATT_IF_NONE,       /* Not get the gatt_if, so initial is ESP_GATT_IF_NONE */
-        // },
+        [PROFILE_B_APP_ID] = {
+            .gattc_cb = gattc_profile_evt_handler,
+            .gattc_if = ESP_GATT_IF_NONE,       /* Not get the gatt_if, so initial is ESP_GATT_IF_NONE */
+        },
+        [PROFILE_C_APP_ID] = {
+            .gattc_cb = gattc_profile_evt_handler,
+            .gattc_if = ESP_GATT_IF_NONE,       /* Not get the gatt_if, so initial is ESP_GATT_IF_NONE */
+        },
     },
     .remote_dev_name = {
-        "ESP_GATTS_DEMO"
-        //{ "ESP_GATTS_DEMO_a", "ESP_GATTS_DEMO_b", "ESP_GATTS_DEMO_c" }
+        // "ESP_GATTS_DEMO"
+        "ESP_GATTS_DEMO_a", "ESP_GATTS_DEMO_b", "ESP_GATTS_DEMO_c"
     },
     .service_uuid = {
         .len = ESP_UUID_LEN_16,
@@ -76,9 +74,15 @@ ble_gatt_client_t ble_client = {
         .len = ESP_UUID_LEN_16,
         .uuid = {.uuid16 = REMOTE_NOTIFY_CHAR_UUID,},
     },
-    .connections    = { false },
-    .service_found  = { false },
-    .stop_scan_done = false
+    .notify_descr_uuid = {
+        .len = ESP_UUID_LEN_16,
+        .uuid = {.uuid16 = ESP_GATT_UUID_CHAR_CLIENT_CONFIG,},
+    },
+    .char_elem_result  = { NULL, NULL, NULL },
+    .descr_elem_result = { NULL, NULL, NULL},
+    .connections       = { false, false, false },
+    .service_found     = { false, false, false },
+    .stop_scan_done    = false
 };
 
 /* API Locals */
@@ -89,11 +93,6 @@ static esp_ble_scan_params_t ble_scan_params = {
     .scan_interval          = 0x50,
     .scan_window            = 0x30,
     .scan_duplicate         = BLE_SCAN_DUPLICATE_DISABLE
-};
-
-static esp_bt_uuid_t notify_descr_uuid = {
-    .len = ESP_UUID_LEN_16,
-    .uuid = {.uuid16 = ESP_GATT_UUID_CHAR_CLIENT_CONFIG,},
 };
 
 /* * * * * * * * * * * * * * * *
@@ -140,7 +139,7 @@ static void esp_gap_cb(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *par
                     adv_name = esp_ble_resolve_adv_data(scan_result->scan_rst.ble_adv,
                                                         ESP_BLE_AD_TYPE_NAME_CMPL, &adv_name_len);
                     ESP_LOGI(TAG, "Searched Device Name Len %d", adv_name_len);
-                    esp_log_buffer_char(TAG, adv_name, adv_name_len);
+                    esp_log_buffer_char(TAG, adv_name, adv_name_len);   /* Print Device Name */
                     ESP_LOGI(TAG, "\n");
 
 #if CONFIG_EXAMPLE_DUMP_ADV_DATA_AND_SCAN_RESP
@@ -155,36 +154,37 @@ static void esp_gap_cb(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *par
 #endif
 
                     if (*is_connecting) {
+                        ESP_LOGI(TAG, "BLE is connecting");
                         break;
                     }
-                    if (conn_devices[PROFILE_A_APP_ID] && !*stop_scan) {
+                    if (conn_devices[PROFILE_A_APP_ID] && conn_devices[PROFILE_B_APP_ID] && !*stop_scan) {
                         *stop_scan = true;
                         esp_ble_gap_stop_scanning();
-                        ESP_LOGI(TAG, "all devices are connected");
+                        ESP_LOGW(TAG, "all devices are connected");
                         break;
                     }
                     if (adv_name != NULL) {
                         if (strlen(ble_client.remote_dev_name[PROFILE_A_APP_ID]) == adv_name_len && strncmp((char *)adv_name, ble_client.remote_dev_name[PROFILE_A_APP_ID], adv_name_len) == 0) {
                             if (conn_devices[PROFILE_A_APP_ID] == false) {
                                 conn_devices[PROFILE_A_APP_ID] = true;
-                                ESP_LOGI(TAG, "Searched device %s", ble_client.remote_dev_name[PROFILE_A_APP_ID]);
+                                ESP_LOGW(TAG, "Searched device %s", ble_client.remote_dev_name[PROFILE_A_APP_ID]);
                                 ESP_LOGI(TAG, "Connect to the remote device.");
-                                esp_ble_gap_stop_scanning();
-                                esp_ble_gattc_open(app_profiles[PROFILE_A_APP_ID].gattc_if, scan_result->scan_rst.bda, scan_result->scan_rst.ble_addr_type, true);
                                 *is_connecting = true;
+                                esp_ble_gap_stop_scanning(); /* This takes some time to stop scanning, is_connecting flag will prevent to keep trying to connect in the meantime. */
+                                esp_ble_gattc_open(app_profiles[PROFILE_A_APP_ID].gattc_if, scan_result->scan_rst.bda, scan_result->scan_rst.ble_addr_type, true);
                             }
                             // break;
                         }
-                        // else if (strlen(names[PROFILE_B_APP_ID]) == adv_name_len && strncmp((char *)adv_name, names[PROFILE_B_APP_ID], adv_name_len) == 0) {
-                        //     if (conn_devices[PROFILE_B_APP_ID] == false) {
-                        //         conn_devices[PROFILE_B_APP_ID] = true;
-                        //         ESP_LOGI(TAG, "Searched device %s", names[PROFILE_B_APP_ID]);
-                        //         esp_ble_gap_stop_scanning();
-                        //         esp_ble_gattc_open(app_profiles[PROFILE_B_APP_ID].gattc_if, scan_result->scan_rst.bda, scan_result->scan_rst.ble_addr_type, true);
-                        //         *is_connecting = true;
-
-                        //     }
-                        // }
+                        else if (strlen(ble_client.remote_dev_name[PROFILE_B_APP_ID]) == adv_name_len && strncmp((char *)adv_name, ble_client.remote_dev_name[PROFILE_B_APP_ID], adv_name_len) == 0) {
+                            if (conn_devices[PROFILE_B_APP_ID] == false) {
+                                conn_devices[PROFILE_B_APP_ID] = true;
+                                ESP_LOGW(TAG, "Searched device %s", ble_client.remote_dev_name[PROFILE_B_APP_ID]);
+                                ESP_LOGI(TAG, "Connect to the remote device.");
+                                *is_connecting = true;
+                                esp_ble_gap_stop_scanning(); /* This takes some time to stop scanning, is_connecting flag will prevent to keep trying to connect in the meantime. */
+                                esp_ble_gattc_open(app_profiles[PROFILE_B_APP_ID].gattc_if, scan_result->scan_rst.bda, scan_result->scan_rst.ble_addr_type, true);
+                            }
+                        }
                         // else if (strlen(names[PROFILE_C_APP_ID]) == adv_name_len && strncmp((char *)adv_name, names[PROFILE_C_APP_ID], adv_name_len) == 0) {
                         //     if (conn_devices[PROFILE_C_APP_ID] == false) {
                         //         conn_devices[PROFILE_C_APP_ID] = true;
@@ -273,6 +273,9 @@ static void gattc_profile_evt_handler(esp_gattc_cb_event_t event, esp_gatt_if_t 
     gattc_profile_inst_t     *app_profile = &ble_client.app_profiles[app_id];
     esp_bt_uuid_t    remfilt_service_uuid = ble_client.service_uuid;
     esp_bt_uuid_t       remfilt_char_uuid = ble_client.charact_uuid;
+    esp_bt_uuid_t       notify_descr_uuid = ble_client.notify_descr_uuid;
+    esp_gattc_char_elem_t      *char_elem = ble_client.char_elem_result[app_id];
+    esp_gattc_descr_elem_t    *descr_elem = ble_client.descr_elem_result[app_id];
     bool                     *get_service = &ble_client.service_found[app_id];
     bool                     *conn_device = &ble_client.connections[app_id];
 
@@ -280,7 +283,7 @@ static void gattc_profile_evt_handler(esp_gattc_cb_event_t event, esp_gatt_if_t 
         case ESP_GATTC_REG_EVT:
             ESP_LOGI(TAG, "REG_EVT -> app_id: %d", idx);
             /* Set scan parameters after first app register */
-            if (PROFILE_A_APP_ID == app_id) {
+            if (PROFILE_C_APP_ID == app_id) {
                 esp_err_t scan_ret = esp_ble_gap_set_scan_params(&ble_scan_params);
                 if (scan_ret) {
                     ESP_LOGE(TAG, "Set scan params error, error code = %x", scan_ret);
@@ -318,14 +321,14 @@ static void gattc_profile_evt_handler(esp_gattc_cb_event_t event, esp_gatt_if_t 
                 break;
             }
             ESP_LOGI(TAG, "discover service complete conn_id %d", param->dis_srvc_cmpl.conn_id);
-            esp_ble_gattc_search_service(gattc_if, param->cfg_mtu.conn_id, &remfilt_service_uuid);
+            // esp_ble_gattc_search_service(gattc_if, param->cfg_mtu.conn_id, &remfilt_service_uuid);
             break;
         case ESP_GATTC_CFG_MTU_EVT:
             if (param->cfg_mtu.status != ESP_GATT_OK) {
                 ESP_LOGE(TAG,"Config mtu failed");
             }
             ESP_LOGI(TAG, "ESP_GATTC_CFG_MTU_EVT: Status %d, MTU %d, conn_id %d", param->cfg_mtu.status, param->cfg_mtu.mtu, param->cfg_mtu.conn_id);
-            // esp_ble_gattc_search_service(gattc_if, param->cfg_mtu.conn_id, &remfilt_service_uuid);
+            esp_ble_gattc_search_service(gattc_if, param->cfg_mtu.conn_id, &remfilt_service_uuid);
             break;
         case ESP_GATTC_SEARCH_RES_EVT: {
             ESP_LOGI(TAG, "SEARCH RES: conn_id = %x is primary service %d", p_data->search_res.conn_id, p_data->search_res.is_primary);
@@ -361,13 +364,13 @@ static void gattc_profile_evt_handler(esp_gattc_cb_event_t event, esp_gatt_if_t 
                                                                         app_profile->service_end_handle,
                                                                         INVALID_HANDLE,
                                                                         &count);
-                if (status != ESP_GATT_OK){
+                if (status != ESP_GATT_OK) {
                     ESP_LOGE(TAG, "esp_ble_gattc_get_attr_count error");
                 }
                 if (count > 0) {
-                    char_elem_result = (esp_gattc_char_elem_t *)malloc(sizeof(esp_gattc_char_elem_t) * count);
+                    char_elem = (esp_gattc_char_elem_t *)malloc(sizeof(esp_gattc_char_elem_t) * count);
                     ESP_LOGI(TAG, "Char count %d", count);
-                    if (!char_elem_result){
+                    if (!char_elem){
                         ESP_LOGE(TAG, "gattc no mem");
                     } else {
                         status = esp_ble_gattc_get_char_by_uuid( gattc_if,
@@ -375,23 +378,23 @@ static void gattc_profile_evt_handler(esp_gattc_cb_event_t event, esp_gatt_if_t 
                                                                 app_profile->service_start_handle,
                                                                 app_profile->service_end_handle,
                                                                 remfilt_char_uuid,
-                                                                char_elem_result,
+                                                                char_elem,
                                                                 &count);
                         if (status != ESP_GATT_OK){
                             ESP_LOGE(TAG, "esp_ble_gattc_get_char_by_uuid error");
                         }
 
                         /*  Every service have only one char in our 'ESP_GATTS_DEMO' demo, so we used first 'char_elem_result' */
-                        if (count > 0 && (char_elem_result[0].properties & ESP_GATT_CHAR_PROP_BIT_READ)){ // ESP_GATT_CHAR_PROP_BIT_NOTIFY
-                            app_profile->char_handle = char_elem_result[0].char_handle;
-                            // esp_ble_gattc_register_for_notify (gattc_if, app_profile->remote_bda, char_elem_result[0].char_handle);
-                            esp_ble_gattc_read_char(gattc_if, p_data->search_cmpl.conn_id, char_elem_result[0].char_handle, ESP_GATT_AUTH_REQ_NONE);
+                        if (count > 0 && (char_elem[0].properties & ESP_GATT_CHAR_PROP_BIT_NOTIFY)) { // ESP_GATT_CHAR_PROP_BIT_NOTIFY
+                            app_profile->char_handle = char_elem[0].char_handle;
+                            esp_ble_gattc_register_for_notify (gattc_if, app_profile->remote_bda, char_elem[0].char_handle);
+                            // esp_ble_gattc_read_char(gattc_if, p_data->search_cmpl.conn_id, char_elem_result[0].char_handle, ESP_GATT_AUTH_REQ_NONE);
                         }
                     }
-                    /* free char_elem_result */
-                    free(char_elem_result);
+                    /* free char_elem */
+                    free(char_elem);
                 } else {
-                    ESP_LOGE(TAG, "no char found");
+                    ESP_LOGE(TAG, "No char found");
                 }
             }
             break;
@@ -422,25 +425,25 @@ static void gattc_profile_evt_handler(esp_gattc_cb_event_t event, esp_gatt_if_t 
                 ESP_LOGE(TAG, "esp_ble_gattc_get_attr_count error");
             }
             if (count > 0) {
-                descr_elem_result = (esp_gattc_descr_elem_t *)malloc(sizeof(esp_gattc_descr_elem_t) * count);
-                if (!descr_elem_result) {
+                descr_elem = (esp_gattc_descr_elem_t *)malloc(sizeof(esp_gattc_descr_elem_t) * count);
+                if (!descr_elem) {
                     ESP_LOGE(TAG, "malloc error, gattc no mem");
                 } else {
                     ret_status = esp_ble_gattc_get_descr_by_char_handle( gattc_if,
                                                                         app_profile->conn_id,
                                                                         p_data->reg_for_notify.handle,
                                                                         notify_descr_uuid,
-                                                                        descr_elem_result,
+                                                                        descr_elem,
                                                                         &count);
                     if (ret_status != ESP_GATT_OK){
                         ESP_LOGE(TAG, "esp_ble_gattc_get_descr_by_char_handle error");
                     }
 
-                    /* Every char has only one descriptor in our 'ESP_GATTS_DEMO' demo, so we used first 'descr_elem_result' */
-                    if (count > 0 && descr_elem_result[0].uuid.len == ESP_UUID_LEN_16 && descr_elem_result[0].uuid.uuid.uuid16 == ESP_GATT_UUID_CHAR_CLIENT_CONFIG){
+                    /* Every char has only one descriptor in our 'ESP_GATTS_DEMO' demo, so we used first 'descr_elem' */
+                    if (count > 0 && descr_elem[0].uuid.len == ESP_UUID_LEN_16 && descr_elem[0].uuid.uuid.uuid16 == ESP_GATT_UUID_CHAR_CLIENT_CONFIG){
                         ret_status = esp_ble_gattc_write_char_descr( gattc_if,
                                                                     app_profile->conn_id,
-                                                                    descr_elem_result[0].handle,
+                                                                    descr_elem[0].handle,
                                                                     sizeof(notify_en),
                                                                     (uint8_t *)&notify_en,
                                                                     ESP_GATT_WRITE_TYPE_RSP,
@@ -451,8 +454,8 @@ static void gattc_profile_evt_handler(esp_gattc_cb_event_t event, esp_gatt_if_t 
                         ESP_LOGE(TAG, "esp_ble_gattc_write_char_descr error");
                     }
 
-                    /* free descr_elem_result */
-                    free(descr_elem_result);
+                    /* free descr_elem */
+                    free(descr_elem);
                 }
             }
             else{
@@ -462,9 +465,9 @@ static void gattc_profile_evt_handler(esp_gattc_cb_event_t event, esp_gatt_if_t 
         }
         case ESP_GATTC_NOTIFY_EVT:
             if (p_data->notify.is_notify) {
-                ESP_LOGI(TAG, "ESP_GATTC_NOTIFY_EVT, receive notify value:");
+                ESP_LOGI(TAG, "ESP_GATTC_NOTIFY_EVT, Receive notify value:");
             } else {
-                ESP_LOGI(TAG, "ESP_GATTC_NOTIFY_EVT, receive indicate value:");
+                ESP_LOGI(TAG, "ESP_GATTC_NOTIFY_EVT, Receive indicate value:");
             }
             esp_log_buffer_hex(TAG, p_data->notify.value, p_data->notify.value_len);
             break;
@@ -493,7 +496,7 @@ static void gattc_profile_evt_handler(esp_gattc_cb_event_t event, esp_gatt_if_t 
             } else {
                 ESP_LOGI(TAG, "write char success");
             }
-            // start_scan();
+            ble_start_scan(&ble_client);
             break;
         case ESP_GATTC_SRVC_CHG_EVT: {
             esp_bd_addr_t bda;
@@ -520,7 +523,6 @@ static void gattc_profile_evt_handler(esp_gattc_cb_event_t event, esp_gatt_if_t 
 }
 
 /* API Globals */
-
 void bt_setup(void) {
     esp_err_t ret;
     /* Initialize BT Controller */
@@ -617,6 +619,13 @@ void ble_set_local_mtu(uint16_t mtu)
     } else {
         ESP_LOGE(TAG, "set local  MTU sucess, code = %x", local_mtu_ret);
     }
+}
+
+void ble_start_scan(ble_gatt_client_t *client)
+{
+    client->stop_scan_done = false;
+    client->is_connecting  = false;
+    esp_ble_gap_start_scanning(BLE_SCAN_TIME); // Duration in seconds;
 }
 
 void app_main(void)

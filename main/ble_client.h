@@ -49,14 +49,11 @@
 #define REMOTE_NOTIFY_CHAR_UUID 0xFF01              /* Single Remote Filter Characteristc UUID for all servers */
 
 
-#define PROFILE_NUM     1   /* Register three profiles, each profile corresponds to one connection which makes it easy to handle each connection event */
-#define PROFILE_NUM_MAX 8
-// #define PROFILE_A_APP_ID 0
-// #define PROFILE_B_APP_ID 1
-// #define PROFILE_C_APP_ID 2
-#define INVALID_HANDLE  0
+#define PROFILE_NUM     3U   /* Register three profiles, each profile corresponds to one connection which makes it easy to handle each connection event */
+#define PROFILE_NUM_MAX 8U
+#define INVALID_HANDLE  0U
 
-#define BLE_SCAN_TIME   2   // Seconds
+#define BLE_SCAN_TIME   1U   // Seconds
 
 /* * * * * * * * * * * * * * * *
  * * * * * FN TYPEDEFS * * * *
@@ -99,14 +96,17 @@ typedef struct gattc_profile_inst {
 
 typedef struct ble_gatt_client
 {
-    gattc_profile_inst_t app_profiles[PROFILE_NUM];
-    const char           *remote_dev_name[PROFILE_NUM];
-    esp_bt_uuid_t        service_uuid;                  /* Single Remote Filter Service UUID for all servers */
-    esp_bt_uuid_t        charact_uuid;                  /* Same characteristic UUID for all services */
-    bool                 connections[PROFILE_NUM];
-    bool                 service_found[PROFILE_NUM];
-    bool                 stop_scan_done;
-    bool                 is_connecting;
+    gattc_profile_inst_t    app_profiles[PROFILE_NUM];
+    const char              *remote_dev_name[PROFILE_NUM];
+    esp_bt_uuid_t           service_uuid;                   /* Single Remote Filter Service UUID for all servers */
+    esp_bt_uuid_t           charact_uuid;                   /* Same characteristic UUID for all services */
+    esp_bt_uuid_t           notify_descr_uuid;              /* Same description notify UUID for all services */
+    esp_gattc_char_elem_t  *char_elem_result[PROFILE_NUM];
+    esp_gattc_descr_elem_t *descr_elem_result[PROFILE_NUM];
+    bool                    connections[PROFILE_NUM];
+    bool                    service_found[PROFILE_NUM];
+    bool                    stop_scan_done;
+    bool                    is_connecting;
 } ble_gatt_client_t;
 
 extern ble_gatt_client_t ble_client;
@@ -121,3 +121,5 @@ void ble_setup(void);
 void start_scan(void);
 
 void ble_register_app(void);
+
+void ble_start_scan(ble_gatt_client_t *client);

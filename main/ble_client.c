@@ -41,6 +41,7 @@ static void gattc_profile_evt_handler(esp_gattc_cb_event_t event, esp_gatt_if_t 
 /* * * * * * * * * * * * * * * *
  * * * * * * VARIABLES * * * * *
  * * * * * * * * * * * * * * * */
+static bool set_up_complete = false;
 
 /* * * * * * * * * * * * * * * *
  * * * * * * STRUCTS * * * * * *
@@ -391,11 +392,12 @@ static void gattc_profile_evt_handler(esp_gattc_cb_event_t event, esp_gatt_if_t 
                         if (*charact_count > 0 && (char_elem[0].properties & ESP_GATT_CHAR_PROP_BIT_READ)) { // ESP_GATT_CHAR_PROP_BIT_NOTIFY
                             app_profile->char_handle = char_elem[0].char_handle;
                             // esp_ble_gattc_register_for_notify (gattc_if, app_profile->remote_bda, char_elem[0].char_handle);
-                            esp_ble_gattc_read_char(gattc_if, p_data->search_cmpl.conn_id, app_profile->char_handle, ESP_GATT_AUTH_REQ_NONE);
+                            esp_ble_gattc_read_char(app_profile->gattc_if, app_profile->conn_id, app_profile->char_handle, ESP_GATT_AUTH_REQ_NONE);
                         }
                     }
                     /* free char_elem */
                     free(char_elem);
+                    set_up_complete = true;
                 } else {
                     ESP_LOGE(TAG, "No char found");
                 }
@@ -642,5 +644,18 @@ void app_main(void)
 
     /* Setup MTU size */
     ble_set_local_mtu(500);
+
+    // while (!set_up_complete) {
+    //     vTaskDelay(10 / portTICK_PERIOD_MS);
+    // }
+
+    // esp_ble_gattc_read_char(ble_client.gattc_if[PROFILE_A_APP_ID], ble_client.gattc_if[PROFILE_A_APP_ID], app_profile->char_handle, ESP_GATT_AUTH_REQ_NONE);
+    // vTaskDelay(2 / portTICK_PERIOD_MS);
+    // vTaskDelay(2 / portTICK_PERIOD_MS);
+    // vTaskDelay(2 / portTICK_PERIOD_MS);
+    // vTaskDelay(2 / portTICK_PERIOD_MS);
+
+
+
 
 }

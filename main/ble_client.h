@@ -53,7 +53,7 @@
 #define PROFILE_NUM_MAX 8U
 #define INVALID_HANDLE  0U
 
-#define BLE_SCAN_TIME   2U   // Seconds
+#define BLE_SCAN_TIME   1U   // Seconds
 
 /* * * * * * * * * * * * * * * *
  * * * * * FN TYPEDEFS * * * *

@@ -384,8 +384,8 @@ static void gattc_profile_evt_handler(esp_gattc_cb_event_t event, esp_gatt_if_t 
                         /*  Every service have only one char in our 'ESP_GATTS_DEMO' demo, so we used first 'char_elem_result' */
                         if (count > 0 && (char_elem_result[0].properties & ESP_GATT_CHAR_PROP_BIT_READ)){ // ESP_GATT_CHAR_PROP_BIT_NOTIFY
                             app_profile->char_handle = char_elem_result[0].char_handle;
-                            esp_ble_gattc_register_for_notify (gattc_if, app_profile->remote_bda, char_elem_result[0].char_handle);
-                            // esp_ble_gattc_read_char(gattc_if, p_data->search_cmpl.conn_id, char_elem_result[0].char_handle, ESP_GATT_AUTH_REQ_NONE);
+                            // esp_ble_gattc_register_for_notify (gattc_if, app_profile->remote_bda, char_elem_result[0].char_handle);
+                            esp_ble_gattc_read_char(gattc_if, p_data->search_cmpl.conn_id, char_elem_result[0].char_handle, ESP_GATT_AUTH_REQ_NONE);
                         }
                     }
                     /* free char_elem_result */
@@ -589,9 +589,6 @@ void ble_setup(void) {
     /* Register BLE GAP & BLE GATT Client Callbacks */
     ble_register_cbs();
 
-    /* Register BLE App Profiles */
-    ble_register_app();
-
 }
 
 void ble_register_app(void)
@@ -611,15 +608,26 @@ void ble_register_app(void)
     }
 }
 
-void app_main(void)
+void ble_set_local_mtu(uint16_t mtu)
 {
-    /* Run complete BLE setup */
-    ble_setup();
-
-    esp_err_t local_mtu_ret = esp_ble_gatt_set_local_mtu(500);
+    /* Run after starting BLE scan */
+    esp_err_t local_mtu_ret = esp_ble_gatt_set_local_mtu(mtu);
     if (local_mtu_ret){
         ESP_LOGE(TAG, "set local  MTU failed, error code = %x", local_mtu_ret);
     } else {
         ESP_LOGE(TAG, "set local  MTU sucess, code = %x", local_mtu_ret);
     }
+}
+
+void app_main(void)
+{
+    /* Run complete BLE setup */
+    ble_setup();
+
+    /* Register BLE App Profiles */
+    ble_register_app();
+
+    /* Setup MTU size */
+    ble_set_local_mtu(500);
+
 }

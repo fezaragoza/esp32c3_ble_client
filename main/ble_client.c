@@ -82,7 +82,9 @@ ble_gatt_client_t ble_client = {
     .descr_elem_result = { NULL, NULL, NULL},
     .connections       = { false, false, false },
     .service_found     = { false, false, false },
-    .stop_scan_done    = false
+    .charact_count     = { 0U, 0U, 0U },
+    .stop_scan_done    = false,
+    .is_connecting     = false
 };
 
 /* API Locals */
@@ -278,6 +280,7 @@ static void gattc_profile_evt_handler(esp_gattc_cb_event_t event, esp_gatt_if_t 
     esp_gattc_descr_elem_t    *descr_elem = ble_client.descr_elem_result[app_id];
     bool                     *get_service = &ble_client.service_found[app_id];
     bool                     *conn_device = &ble_client.connections[app_id];
+    uint16_t               *charact_count = &ble_client.charact_count[app_id];
 
     switch (event) {
         case ESP_GATTC_REG_EVT:
@@ -356,20 +359,20 @@ static void gattc_profile_evt_handler(esp_gattc_cb_event_t event, esp_gatt_if_t 
                 ESP_LOGI(TAG, "unknown service source");
             }
             if (*get_service) {
-                uint16_t count = 0;
+                // uint16_t count = 0;
                 esp_gatt_status_t status = esp_ble_gattc_get_attr_count( gattc_if,
                                                                         p_data->search_cmpl.conn_id,
                                                                         ESP_GATT_DB_CHARACTERISTIC,
                                                                         app_profile->service_start_handle,
                                                                         app_profile->service_end_handle,
                                                                         INVALID_HANDLE,
-                                                                        &count);
+                                                                        charact_count);
                 if (status != ESP_GATT_OK) {
                     ESP_LOGE(TAG, "esp_ble_gattc_get_attr_count error");
                 }
-                if (count > 0) {
-                    char_elem = (esp_gattc_char_elem_t *)malloc(sizeof(esp_gattc_char_elem_t) * count);
-                    ESP_LOGI(TAG, "Char count %d", count);
+                if (*charact_count > 0) {
+                    char_elem = (esp_gattc_char_elem_t *)malloc(sizeof(esp_gattc_char_elem_t) * (*charact_count));
+                    ESP_LOGI(TAG, "Char count %d", *charact_count);
                     if (!char_elem){
                         ESP_LOGE(TAG, "gattc no mem");
                     } else {
@@ -379,16 +382,16 @@ static void gattc_profile_evt_handler(esp_gattc_cb_event_t event, esp_gatt_if_t 
                                                                 app_profile->service_end_handle,
                                                                 remfilt_char_uuid,
                                                                 char_elem,
-                                                                &count);
+                                                                charact_count);
                         if (status != ESP_GATT_OK){
                             ESP_LOGE(TAG, "esp_ble_gattc_get_char_by_uuid error");
                         }
 
                         /*  Every service have only one char in our 'ESP_GATTS_DEMO' demo, so we used first 'char_elem_result' */
-                        if (count > 0 && (char_elem[0].properties & ESP_GATT_CHAR_PROP_BIT_READ)) { // ESP_GATT_CHAR_PROP_BIT_NOTIFY
+                        if (*charact_count > 0 && (char_elem[0].properties & ESP_GATT_CHAR_PROP_BIT_READ)) { // ESP_GATT_CHAR_PROP_BIT_NOTIFY
                             app_profile->char_handle = char_elem[0].char_handle;
                             // esp_ble_gattc_register_for_notify (gattc_if, app_profile->remote_bda, char_elem[0].char_handle);
-                            esp_ble_gattc_read_char(gattc_if, p_data->search_cmpl.conn_id, char_elem[0].char_handle, ESP_GATT_AUTH_REQ_NONE);
+                            esp_ble_gattc_read_char(gattc_if, p_data->search_cmpl.conn_id, app_profile->char_handle, ESP_GATT_AUTH_REQ_NONE);
                         }
                     }
                     /* free char_elem */

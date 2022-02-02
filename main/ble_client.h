@@ -105,6 +105,7 @@ typedef struct ble_gatt_client
     esp_gattc_descr_elem_t *descr_elem_result[PROFILE_NUM];
     bool                    connections[PROFILE_NUM];
     bool                    service_found[PROFILE_NUM];
+    uint16_t                charact_count[PROFILE_NUM];
     bool                    stop_scan_done;
     bool                    is_connecting;
 } ble_gatt_client_t;

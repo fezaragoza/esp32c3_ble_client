@@ -41,7 +41,6 @@ static void gattc_profile_evt_handler(esp_gattc_cb_event_t event, esp_gatt_if_t 
 /* * * * * * * * * * * * * * * *
  * * * * * * VARIABLES * * * * *
  * * * * * * * * * * * * * * * */
-static bool set_up_complete = false;
 
 /* * * * * * * * * * * * * * * *
  * * * * * * STRUCTS * * * * * *
@@ -397,7 +396,6 @@ static void gattc_profile_evt_handler(esp_gattc_cb_event_t event, esp_gatt_if_t 
                     }
                     /* free char_elem */
                     free(char_elem);
-                    set_up_complete = true;
                 } else {
                     ESP_LOGE(TAG, "No char found");
                 }
@@ -410,7 +408,8 @@ static void gattc_profile_evt_handler(esp_gattc_cb_event_t event, esp_gatt_if_t 
                 break;
             }
             esp_log_buffer_hex(TAG, p_data->read.value, p_data->read.value_len); // esp_ble_gattc_cb_param_t
-            ble_start_scan(&ble_client);
+            if (!ble_client.stop_scan_done)
+                ble_start_scan(&ble_client);
             break;
         case ESP_GATTC_REG_FOR_NOTIFY_EVT: {
             ESP_LOGI(TAG, "ESP_GATTC_REG_FOR_NOTIFY_EVT");
@@ -629,7 +628,7 @@ void ble_set_local_mtu(uint16_t mtu)
 
 void ble_start_scan(ble_gatt_client_t *client)
 {
-    client->stop_scan_done = false;
+    // client->stop_scan_done = false;
     client->is_connecting  = false;
     esp_ble_gap_start_scanning(BLE_SCAN_TIME); // Duration in seconds;
 }
@@ -645,17 +644,29 @@ void app_main(void)
     /* Setup MTU size */
     ble_set_local_mtu(500);
 
-    // while (!set_up_complete) {
-    //     vTaskDelay(10 / portTICK_PERIOD_MS);
-    // }
+    while (!ble_client.stop_scan_done) {
+        vTaskDelay(10 / portTICK_PERIOD_MS);
+    }
 
-    // esp_ble_gattc_read_char(ble_client.gattc_if[PROFILE_A_APP_ID], ble_client.gattc_if[PROFILE_A_APP_ID], app_profile->char_handle, ESP_GATT_AUTH_REQ_NONE);
-    // vTaskDelay(2 / portTICK_PERIOD_MS);
-    // vTaskDelay(2 / portTICK_PERIOD_MS);
-    // vTaskDelay(2 / portTICK_PERIOD_MS);
-    // vTaskDelay(2 / portTICK_PERIOD_MS);
-
-
-
+    esp_ble_gattc_read_char(ble_client.app_profiles[PROFILE_A_APP_ID].gattc_if, ble_client.app_profiles[PROFILE_A_APP_ID].conn_id, 
+                                ble_client.app_profiles[PROFILE_A_APP_ID].char_handle, ESP_GATT_AUTH_REQ_NONE);
+    esp_ble_gattc_read_char(ble_client.app_profiles[PROFILE_B_APP_ID].gattc_if, ble_client.app_profiles[PROFILE_B_APP_ID].conn_id, 
+                                ble_client.app_profiles[PROFILE_B_APP_ID].char_handle, ESP_GATT_AUTH_REQ_NONE);
+    vTaskDelay(2 / portTICK_PERIOD_MS);
+    esp_ble_gattc_read_char(ble_client.app_profiles[PROFILE_A_APP_ID].gattc_if, ble_client.app_profiles[PROFILE_A_APP_ID].conn_id, 
+                                ble_client.app_profiles[PROFILE_A_APP_ID].char_handle, ESP_GATT_AUTH_REQ_NONE);
+    esp_ble_gattc_read_char(ble_client.app_profiles[PROFILE_B_APP_ID].gattc_if, ble_client.app_profiles[PROFILE_B_APP_ID].conn_id, 
+                                ble_client.app_profiles[PROFILE_B_APP_ID].char_handle, ESP_GATT_AUTH_REQ_NONE);
+    vTaskDelay(2 / portTICK_PERIOD_MS);
+    esp_ble_gattc_read_char(ble_client.app_profiles[PROFILE_A_APP_ID].gattc_if, ble_client.app_profiles[PROFILE_A_APP_ID].conn_id, 
+                                ble_client.app_profiles[PROFILE_A_APP_ID].char_handle, ESP_GATT_AUTH_REQ_NONE);
+    esp_ble_gattc_read_char(ble_client.app_profiles[PROFILE_B_APP_ID].gattc_if, ble_client.app_profiles[PROFILE_B_APP_ID].conn_id, 
+                                ble_client.app_profiles[PROFILE_B_APP_ID].char_handle, ESP_GATT_AUTH_REQ_NONE);
+    vTaskDelay(2 / portTICK_PERIOD_MS);
+    esp_ble_gattc_read_char(ble_client.app_profiles[PROFILE_A_APP_ID].gattc_if, ble_client.app_profiles[PROFILE_A_APP_ID].conn_id, 
+                                ble_client.app_profiles[PROFILE_A_APP_ID].char_handle, ESP_GATT_AUTH_REQ_NONE);
+    esp_ble_gattc_read_char(ble_client.app_profiles[PROFILE_B_APP_ID].gattc_if, ble_client.app_profiles[PROFILE_B_APP_ID].conn_id, 
+                                ble_client.app_profiles[PROFILE_B_APP_ID].char_handle, ESP_GATT_AUTH_REQ_NONE);
+    vTaskDelay(2 / portTICK_PERIOD_MS);
 
 }

@@ -40,6 +40,8 @@
 #include "esp_log.h"
 /* Vanilla FreeRTOS */
 #include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
+#include "freertos/timers.h"
 
 /* * * * * * * * * * * * * * * *
  * * * * * * DEFINES * * * * * *
@@ -103,6 +105,7 @@ typedef struct ble_gatt_client
     esp_bt_uuid_t           notify_descr_uuid;              /* Same description notify UUID for all services */
     esp_gattc_char_elem_t  *char_elem_result[PROFILE_NUM];
     esp_gattc_descr_elem_t *descr_elem_result[PROFILE_NUM];
+    uint16_t                charact_count[PROFILE_NUM];
     bool                    connections[PROFILE_NUM];
     bool                    service_found[PROFILE_NUM];
     bool                    stop_scan_done;
@@ -122,4 +125,4 @@ void start_scan(void);
 
 void ble_register_app(void);
 
-void ble_start_scan(ble_gatt_client_t *client);
+void ble_start_scan(ble_gatt_client_t *client, bool reset);

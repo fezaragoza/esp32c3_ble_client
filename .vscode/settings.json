@@ -17,6 +17,8 @@
     "tuple": "c",
     "type_traits": "c",
     "utility": "c",
-    "*.inc": "c"
+    "*.inc": "c",
+    "bitset": "c",
+    "algorithm": "c"
   }
 }

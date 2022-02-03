@@ -116,8 +116,9 @@ static void esp_gap_cb(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *par
     switch (event) {
         case ESP_GAP_BLE_SCAN_PARAM_SET_COMPLETE_EVT: {
             ESP_LOGI(TAG, "EVT: BLE Scan Parameters Set Completed");
-            uint32_t duration = BLE_SCAN_TIME;          // The unit of the duration is second
-            esp_ble_gap_start_scanning(duration);
+            // uint32_t duration = BLE_SCAN_TIME;          // The unit of the duration is second
+            // esp_ble_gap_start_scanning(duration);
+            // ble_start_scan(&ble_client, true);
             break;
         }
 
@@ -170,7 +171,7 @@ static void esp_gap_cb(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *par
                             if (conn_devices[PROFILE_A_APP_ID] == false) {
                                 conn_devices[PROFILE_A_APP_ID] = true;
                                 ESP_LOGW(TAG, "Searched device %s", ble_client.remote_dev_name[PROFILE_A_APP_ID]);
-                                ESP_LOGI(TAG, "Connect to the remote device.");
+                                ESP_LOGW(TAG, "Attempting to connect to the remote device.");
                                 *is_connecting = true;
                                 esp_ble_gap_stop_scanning(); /* This takes some time to stop scanning, is_connecting flag will prevent to keep trying to connect to others in the meantime. */
                                 esp_ble_gattc_open(app_profiles[PROFILE_A_APP_ID].gattc_if, scan_result->scan_rst.bda, scan_result->scan_rst.ble_addr_type, true);
@@ -181,7 +182,7 @@ static void esp_gap_cb(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *par
                             if (conn_devices[PROFILE_B_APP_ID] == false) {
                                 conn_devices[PROFILE_B_APP_ID] = true;
                                 ESP_LOGW(TAG, "Searched device %s", ble_client.remote_dev_name[PROFILE_B_APP_ID]);
-                                ESP_LOGI(TAG, "Connect to the remote device.");
+                                ESP_LOGW(TAG, "Attempting to connect to the remote device.");
                                 *is_connecting = true;
                                 esp_ble_gap_stop_scanning(); /* This takes some time to stop scanning, is_connecting flag will prevent to keep trying to connect to others in the meantime. */
                                 esp_ble_gattc_open(app_profiles[PROFILE_B_APP_ID].gattc_if, scan_result->scan_rst.bda, scan_result->scan_rst.ble_addr_type, true);
@@ -286,7 +287,7 @@ static void gattc_profile_evt_handler(esp_gattc_cb_event_t event, esp_gatt_if_t 
         case ESP_GATTC_REG_EVT:
             ESP_LOGI(TAG, "REG_EVT -> app_id: %d", idx);
             /* Set scan parameters after first app register */
-            if (PROFILE_C_APP_ID == app_id) {
+            if ((PROFILE_NUM - 1) == app_id) {
                 esp_err_t scan_ret = esp_ble_gap_set_scan_params(&ble_scan_params);
                 if (scan_ret) {
                     ESP_LOGE(TAG, "Set scan params error, error code = %x", scan_ret);
@@ -318,6 +319,13 @@ static void gattc_profile_evt_handler(esp_gattc_cb_event_t event, esp_gatt_if_t 
                 ESP_LOGE(TAG, "Config MTU error, error code = %x", mtu_ret);
             }
             break;
+        case ESP_GATTC_CFG_MTU_EVT:
+            if (param->cfg_mtu.status != ESP_GATT_OK) {
+                ESP_LOGE(TAG,"Config mtu failed");
+            }
+            ESP_LOGI(TAG, "ESP_GATTC_CFG_MTU_EVT: Status %d, MTU %d, conn_id %d", param->cfg_mtu.status, param->cfg_mtu.mtu, param->cfg_mtu.conn_id);
+            esp_ble_gattc_search_service(gattc_if, param->cfg_mtu.conn_id, &remfilt_service_uuid);
+            break;
         case ESP_GATTC_DIS_SRVC_CMPL_EVT:
             if (param->dis_srvc_cmpl.status != ESP_GATT_OK){
                 ESP_LOGE(TAG, "discover service failed, status %d", param->dis_srvc_cmpl.status);
@@ -325,13 +333,6 @@ static void gattc_profile_evt_handler(esp_gattc_cb_event_t event, esp_gatt_if_t 
             }
             ESP_LOGI(TAG, "discover service complete conn_id %d", param->dis_srvc_cmpl.conn_id);
             // esp_ble_gattc_search_service(gattc_if, param->cfg_mtu.conn_id, &remfilt_service_uuid);
-            break;
-        case ESP_GATTC_CFG_MTU_EVT:
-            if (param->cfg_mtu.status != ESP_GATT_OK) {
-                ESP_LOGE(TAG,"Config mtu failed");
-            }
-            ESP_LOGI(TAG, "ESP_GATTC_CFG_MTU_EVT: Status %d, MTU %d, conn_id %d", param->cfg_mtu.status, param->cfg_mtu.mtu, param->cfg_mtu.conn_id);
-            esp_ble_gattc_search_service(gattc_if, param->cfg_mtu.conn_id, &remfilt_service_uuid);
             break;
         case ESP_GATTC_SEARCH_RES_EVT: {
             ESP_LOGI(TAG, "SEARCH RES: conn_id = %x is primary service %d", p_data->search_res.conn_id, p_data->search_res.is_primary);
@@ -603,6 +604,7 @@ void ble_register_app(void)
 {
     esp_err_t ret = ESP_FAIL;
     /* Register number of profiles to be used in the app */
+    /* This will trigger ESP_GATTC_REG_EVT */
     for (uint8_t i = 0; i < PROFILE_NUM; i++)
     {
         profiles_app_id_t app_id = (profiles_app_id_t)i;
@@ -614,6 +616,8 @@ void ble_register_app(void)
             return;
         }
     }
+    /* Once completed, ESP_GATTC_REG_EVT will trigger ESP_GAP_BLE_SCAN_PARAM_SET_COMPLETE_EVT automatically. */
+    /* ESP_GAP_BLE_SCAN_PARAM_SET_COMPLETE_EVT could trigger ble_start_scan. */
 }
 
 void ble_set_local_mtu(uint16_t mtu)
@@ -629,6 +633,7 @@ void ble_set_local_mtu(uint16_t mtu)
 
 void ble_start_scan(ble_gatt_client_t *client, bool reset)
 {
+    /* This fn will scan AND try to connect to devices/ */
     /* Reset stop_scan_done to force reconnecting missing devices */
     if (reset)
     {
@@ -638,6 +643,19 @@ void ble_start_scan(ble_gatt_client_t *client, bool reset)
     }
     client->is_connecting  = false;
     esp_ble_gap_start_scanning(BLE_SCAN_TIME); // Duration in seconds;
+
+    /* This will trigger ESP_GAP_BLE_SCAN_START_COMPLETE_EVT and ESP_GAP_BLE_SCAN_RESULT_EVT after.
+    *   ESP_GAP_BLE_SCAN_RESULT_EVT will then try to connect to device.
+    *   esp_ble_gap_stop_scanning will be called if names mathced -> ESP_GAP_BLE_SCAN_STOP_COMPLETE_EVT
+    *   esp_ble_gattc_open will be called next to connect device -> ESP_GATTC_CONNECT_EVT and then ESP_GATTC_OPEN_EVT
+    *   ESP_GATTC_OPEN_EVT after a succesfull connection, will send MTU request with esp_ble_gattc_send_mtu_req, 
+    *   triggering ESP_GATTC_CFG_MTU_EVT after: - Updating connection params -> ESP_GAP_BLE_UPDATE_CONN_PARAMS_EVT.
+    *                                           - Call esp_ble_gattc_search_service -> ESP_GATTC_DIS_SRVC_CMPL_EVT and ESP_GATTC_SEARCH_RES_EVT
+    *   ESP_GATTC_SEARCH_RES_EVT will get start and end handle for the service -> ESP_GATTC_SEARCH_CMPL_EVT
+    *   ESP_GATTC_SEARCH_CMPL_EVT: If there's a service, get the attribute characteristics count.
+    *                               If theres more than one characteristic, get it by UUID
+    *                               Save characteristic handle and start scan again to keep connecting other devices.
+    * */
 }
 
 void app_main(void)
@@ -650,6 +668,9 @@ void app_main(void)
 
     /* Setup MTU size */
     ble_set_local_mtu(500);
+
+    /* Start BLE scan */
+    ble_start_scan(&ble_client, true);
 
     while (!ble_client.stop_scan_done) {
         vTaskDelay(10 / portTICK_PERIOD_MS);

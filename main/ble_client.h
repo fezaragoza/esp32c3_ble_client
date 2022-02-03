@@ -125,4 +125,4 @@ void start_scan(void);
 
 void ble_register_app(void);
 
-void ble_start_scan(ble_gatt_client_t *client);
+void ble_start_scan(ble_gatt_client_t *client, bool reset);

@@ -162,7 +162,7 @@ static void esp_gap_cb(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *par
                     if (conn_devices[PROFILE_A_APP_ID] && conn_devices[PROFILE_B_APP_ID] && !*stop_scan) {
                         *stop_scan = true;
                         esp_ble_gap_stop_scanning();
-                        ESP_LOGW(TAG, "all devices are connected");
+                        ESP_LOGW(TAG, "All devices are connected");
                         break;
                     }
                     if (adv_name != NULL) {
@@ -391,7 +391,10 @@ static void gattc_profile_evt_handler(esp_gattc_cb_event_t event, esp_gatt_if_t 
                         if (*charact_count > 0 && (char_elem[0].properties & ESP_GATT_CHAR_PROP_BIT_READ)) { // ESP_GATT_CHAR_PROP_BIT_NOTIFY
                             app_profile->char_handle = char_elem[0].char_handle;
                             // esp_ble_gattc_register_for_notify (gattc_if, app_profile->remote_bda, char_elem[0].char_handle);
-                            esp_ble_gattc_read_char(app_profile->gattc_if, app_profile->conn_id, app_profile->char_handle, ESP_GATT_AUTH_REQ_NONE);
+                            // esp_ble_gattc_read_char(app_profile->gattc_if, app_profile->conn_id, app_profile->char_handle, ESP_GATT_AUTH_REQ_NONE);
+                            /* Finished getting the charactistic handle after successfull conecction. */
+                            /* Start looking for other devices */
+                            ble_start_scan(&ble_client, false);
                         }
                     }
                     /* free char_elem */
@@ -408,8 +411,6 @@ static void gattc_profile_evt_handler(esp_gattc_cb_event_t event, esp_gatt_if_t 
                 break;
             }
             esp_log_buffer_hex(TAG, p_data->read.value, p_data->read.value_len); // esp_ble_gattc_cb_param_t
-            if (!ble_client.stop_scan_done)
-                ble_start_scan(&ble_client);
             break;
         case ESP_GATTC_REG_FOR_NOTIFY_EVT: {
             ESP_LOGI(TAG, "ESP_GATTC_REG_FOR_NOTIFY_EVT");
@@ -626,9 +627,15 @@ void ble_set_local_mtu(uint16_t mtu)
     }
 }
 
-void ble_start_scan(ble_gatt_client_t *client)
+void ble_start_scan(ble_gatt_client_t *client, bool reset)
 {
-    // client->stop_scan_done = false;
+    /* Reset stop_scan_done to force reconnecting missing devices */
+    if (reset)
+    {
+        client->stop_scan_done = false;
+        /* Close all connections */
+        /* Reset all conn values from client struct */
+    }
     client->is_connecting  = false;
     esp_ble_gap_start_scanning(BLE_SCAN_TIME); // Duration in seconds;
 }

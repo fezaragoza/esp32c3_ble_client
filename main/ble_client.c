@@ -160,44 +160,41 @@ static void esp_gap_cb(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *par
                         ESP_LOGI(TAG, "BLE is connecting");
                         break;
                     }
-                    if (conn_devices[PROFILE_A_APP_ID] && conn_devices[PROFILE_B_APP_ID] && !*stop_scan) {
-                        *stop_scan = true;
-                        esp_ble_gap_stop_scanning();
-                        ESP_LOGW(TAG, "All devices are connected");
-                        break;
+                    {
+                        bool ret = true;
+                        /* Check if all devices are connected. */
+                        for (uint i = 0; (i < PROFILE_NUM-1) && ret; i++)
+                            ret &= conn_devices[i];
+                        /* Check now stop scan is not set */
+                        if (ret && !*stop_scan) {
+                            *stop_scan = true;
+                            esp_ble_gap_stop_scanning();
+                            ESP_LOGW(TAG, "All devices are connected");
+                            break;
+                        }
                     }
+                    // if (conn_devices[PROFILE_A_APP_ID] && conn_devices[PROFILE_B_APP_ID] && !*stop_scan) {
+                    //     *stop_scan = true;
+                    //     esp_ble_gap_stop_scanning();
+                    //     ESP_LOGW(TAG, "All devices are connected");
+                    //     break;
+                    // }
                     if (adv_name != NULL) {
-                        if (strlen(ble_client.remote_dev_name[PROFILE_A_APP_ID]) == adv_name_len && strncmp((char *)adv_name, ble_client.remote_dev_name[PROFILE_A_APP_ID], adv_name_len) == 0) {
-                            if (conn_devices[PROFILE_A_APP_ID] == false) {
-                                conn_devices[PROFILE_A_APP_ID] = true;
-                                ESP_LOGW(TAG, "Searched device %s", ble_client.remote_dev_name[PROFILE_A_APP_ID]);
-                                ESP_LOGW(TAG, "Attempting to connect to the remote device.");
-                                *is_connecting = true;
-                                esp_ble_gap_stop_scanning(); /* This takes some time to stop scanning, is_connecting flag will prevent to keep trying to connect to others in the meantime. */
-                                esp_ble_gattc_open(app_profiles[PROFILE_A_APP_ID].gattc_if, scan_result->scan_rst.bda, scan_result->scan_rst.ble_addr_type, true);
-                            }
+                        /* Loop over all profiles to check if adv_name matches saved names. */
+                        for (uint8_t i = 0; i < PROFILE_NUM-1; i++)
+                        {
+                            if (strlen(ble_client.remote_dev_name[i]) == adv_name_len && strncmp((char *)adv_name, ble_client.remote_dev_name[i], adv_name_len) == 0) {
+                                if (conn_devices[i] == false) {
+                                    conn_devices[i] = true;
+                                    ESP_LOGW(TAG, "Searched device %s", ble_client.remote_dev_name[i]);
+                                    ESP_LOGW(TAG, "Attempting to connect to the remote device.");
+                                    *is_connecting = true;
+                                    esp_ble_gap_stop_scanning(); /* This takes some time to stop scanning, is_connecting flag will prevent to keep trying to connect to others in the meantime. */
+                                    esp_ble_gattc_open(app_profiles[i].gattc_if, scan_result->scan_rst.bda, scan_result->scan_rst.ble_addr_type, true);
+                                }
                             // break;
-                        }
-                        else if (strlen(ble_client.remote_dev_name[PROFILE_B_APP_ID]) == adv_name_len && strncmp((char *)adv_name, ble_client.remote_dev_name[PROFILE_B_APP_ID], adv_name_len) == 0) {
-                            if (conn_devices[PROFILE_B_APP_ID] == false) {
-                                conn_devices[PROFILE_B_APP_ID] = true;
-                                ESP_LOGW(TAG, "Searched device %s", ble_client.remote_dev_name[PROFILE_B_APP_ID]);
-                                ESP_LOGW(TAG, "Attempting to connect to the remote device.");
-                                *is_connecting = true;
-                                esp_ble_gap_stop_scanning(); /* This takes some time to stop scanning, is_connecting flag will prevent to keep trying to connect to others in the meantime. */
-                                esp_ble_gattc_open(app_profiles[PROFILE_B_APP_ID].gattc_if, scan_result->scan_rst.bda, scan_result->scan_rst.ble_addr_type, true);
                             }
                         }
-                        // else if (strlen(names[PROFILE_C_APP_ID]) == adv_name_len && strncmp((char *)adv_name, names[PROFILE_C_APP_ID], adv_name_len) == 0) {
-                        //     if (conn_devices[PROFILE_C_APP_ID] == false) {
-                        //         conn_devices[PROFILE_C_APP_ID] = true;
-                        //         ESP_LOGI(TAG, "Searched device %s", names[PROFILE_C_APP_ID]);
-                        //         esp_ble_gap_stop_scanning();
-                        //         esp_ble_gattc_open(app_profiles[PROFILE_C_APP_ID].gattc_if, scan_result->scan_rst.bda, scan_result->scan_rst.ble_addr_type, true);
-                        //         *is_connecting = true;
-                        //     }
-                        //     break;
-                        // }
                     }
                     break;
                 case ESP_GAP_SEARCH_INQ_CMPL_EVT:
